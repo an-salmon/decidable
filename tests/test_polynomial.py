@@ -3,7 +3,8 @@ from fractions import Fraction
 
 from sympy import Poly, Rational, symbols
 
-from decideable.polynomial import verify_polynomial_certificate
+from decidable.parameters import PositiveParameters
+from decidable.polynomial import verify_polynomial_certificate
 
 
 class PolynomialCertificateTests(unittest.TestCase):
@@ -32,6 +33,58 @@ class PolynomialCertificateTests(unittest.TestCase):
             )
         )
 
+    def test_inequality_allows_multiple_weighted_square_factors(self):
+        x, y = self.x, self.y
+        target = Poly(x * ((x + y) ** 2 / 2 + y**2), x, y)
+        hypothesis = Poly(x, x, y)
+        self.assertTrue(
+            verify_polynomial_certificate(
+                target,
+                inequality_squares=[
+                    (Fraction(1, 2), Poly(x + y, x, y), hypothesis),
+                    (1, Poly(y, x, y), hypothesis),
+                ],
+            )
+        )
+
+    def test_positive_parameter_weights_and_coefficients(self):
+        x = self.x
+        p = symbols("p")
+        parameters = PositiveParameters((p,))
+        weight = parameters.rational(Poly(p + 1, p), Poly(p, p))
+        hypothesis = Poly(x, x)
+        factor = Poly(x + p, x, domain=parameters.field)
+        target = Poly((p + 1) / p * (1 + (x + p) ** 2) * x, x, domain=parameters.field)
+        self.assertIs(
+            verify_polynomial_certificate(
+                target,
+                inequalities=[(weight, hypothesis)],
+                inequality_squares=[(weight, factor, hypothesis)],
+                parameters=parameters,
+            ),
+            True,
+        )
+
+    def test_rejects_parameter_weight_without_proven_sign(self):
+        x = self.x
+        p = symbols("p")
+        parameters = PositiveParameters((p,))
+        weight = parameters.rational(Poly(p - 1, p), Poly(1, p))
+        target = Poly((p - 1) * x**2, x, domain=parameters.field)
+        self.assertIs(
+            verify_polynomial_certificate(
+                target, squares=[(weight, Poly(x, x))], parameters=parameters
+            ),
+            False,
+        )
+
+    def test_parameterized_polynomial_requires_parameter_declaration(self):
+        x = self.x
+        p = symbols("p")
+        parameters = PositiveParameters((p,))
+        with self.assertRaises(TypeError):
+            verify_polynomial_certificate(Poly(p * x**2, x, domain=parameters.field))
+
     def test_rejects_incorrect_coefficients(self):
         x = self.x
         self.assertIs(
@@ -53,6 +106,12 @@ class PolynomialCertificateTests(unittest.TestCase):
         self.assertIs(
             verify_polynomial_certificate(
                 Poly(-x**2, x), squares=[(-1, Poly(x, x))]
+            ),
+            False,
+        )
+        self.assertIs(
+            verify_polynomial_certificate(
+                Poly(-x**3, x), inequality_squares=[(-1, Poly(x, x), Poly(x, x))]
             ),
             False,
         )
@@ -87,3 +146,7 @@ class PolynomialCertificateTests(unittest.TestCase):
             verify_polynomial_certificate(Poly(0, x), equations=[(1, Poly(x, x))])
         with self.assertRaises(ValueError):
             verify_polynomial_certificate(Poly(0, x), squares=[(1,)])
+        with self.assertRaises(ValueError):
+            verify_polynomial_certificate(
+                Poly(0, x), inequality_squares=[(0, Poly(x, x), Poly(self.y, self.y))]
+            )

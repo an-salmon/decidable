@@ -1,6 +1,6 @@
-# decideable
+# decidable
 
-`decideable` checks finite algebraic statements that arise inside mathematical
+`decidable` checks finite algebraic statements that arise inside mathematical
 proofs. To use it, write down the hypotheses and conclusion of a proof step,
 then choose the check that matches their mathematical form. A successful check
 establishes the encoded statement. The derivation of that statement from the
@@ -14,14 +14,16 @@ original proof remains part of the mathematical argument.
 | L4 | `verify_polynomial_certificate` | Validity of a supplied certificate for a real polynomial inequality. |
 | L5 | `linear_feasible`, `linear_implies` | Feasibility and implication for finite systems of affine inequalities. |
 | L6 | `verify_series_certificate` | Validity of a supplied certificate for a coefficientwise inequality of formal series. |
+| L7 | `matrix_rank` | Rank of an explicit matrix over the rationals. |
 
 ## Run the examples
 
-With Python 3.10 or newer, run these commands from the repository root.
+With Python 3.9 or newer, run these commands from the repository root.
 
 ```sh
 python -m pip install -e .
 python examples/basic.py
+python examples/parameterized_series.py
 python -m unittest discover -s tests
 ```
 
@@ -46,6 +48,11 @@ and the rules are proved confluent, `False` means the identity fails in the
 formal algebra with those relations. When confluence cannot be established,
 different reductions give `None`.
 
+Use `bilinear_identity` for expressions `pᵀWq`. Map the triples
+`(p, W, q)` to coefficients and declare `adjoints` as an involution on
+the matrix symbols. A fixed point declares a self-adjoint letter. The
+checker uses scalar transposition and closes the word rules under transpose.
+
 ## Gram certificates
 
 The certificate applies to any choice of the given number of vectors in a real
@@ -63,6 +70,22 @@ of vectors. The verifier expands these terms and compares coefficients with
 the target. If it rejects a certificate, the underlying inequality is still
 unresolved by that check.
 
+## Positive parameters
+
+L1, L3, L4 and L6 accept `parameters=PositiveParameters((p, q, ...))`.
+Declare every parameter as independently strictly positive. Encode a strict
+ordering such as `sigma > rho > 0` by declaring `rho` and `gap`, then use
+`sigma = rho + gap` when constructing the inputs. Use `parameters.rational`
+to construct a coefficient from two exact `Poly` objects in the parameters.
+For polynomials in additional variables, use `domain=parameters.field` and
+keep the parameter symbols out of the generator list.
+
+Signs are certified by the coefficient signs of the numerator and denominator
+of the rational function. A denominator must have a certified strict sign.
+These sufficient conditions can reject forms whose sign or nonvanishing is
+unresolved. The [uniform recurrence example](examples/parameterized_series.py)
+checks one certificate for all positive `rho`, `gap`, `c` and `C`.
+
 ## Polynomial certificates
 
 With real variables and rational coefficients, encode the goal as `target >= 0`
@@ -70,8 +93,9 @@ and the hypotheses as polynomials equal to zero or greater than or equal to
 zero. Supply a polynomial multiplier for each equality, a nonnegative rational
 multiplier for each inequality, and a list of polynomial squares with
 nonnegative rational weights. The verifier checks that the resulting expression
-equals the target exactly. This certificate form covers some polynomial
-inequalities. A rejected witness leaves the claim unresolved by this check.
+equals the target exactly. To multiply an inequality by a sum of squares,
+provide one `(weight, square_factor, hypothesis)` entry in `inequality_squares`
+per square. A rejected witness leaves the claim unresolved by this check.
 
 ## Linear arithmetic
 
@@ -80,7 +104,8 @@ in `inequalities` and positive in `strict_inequalities`. An equality can be
 entered as two opposite nonstrict inequalities. Fourier–Motzkin elimination
 decides feasibility over either the real or rational numbers. Implication of
 an affine target being nonnegative is checked by adding its strict negation and
-testing infeasibility.
+testing infeasibility. The number of rows can grow doubly exponentially with
+the number of variables.
 
 ## Formal series certificates
 
@@ -97,4 +122,28 @@ checks that the target equals the sum of the hypotheses times their
 multipliers, plus the slack. The certificate applies coefficient by
 coefficient and requires no analytic convergence.
 
-See [the runnable example](examples/basic.py) for a check at every level.
+Use `shift_series(F, initials)` to form `(F - F(0)) / z`. Supply an exact
+initial coefficient for each formal series symbol. The returned expression
+uses the same symbols to denote their tails. Apply `rebase_series` with the
+same initials to express other terms in those coordinates while preserving
+their coefficients.
+
+## Exact matrix rank
+
+Pass a rectangular sequence of rows to `matrix_rank`. The entries are exact
+integers or `Fraction` objects. The calculation uses rational Gaussian
+elimination. See [the runnable example](examples/basic.py) for checks at all
+seven levels.
+
+## Search and reporting
+
+`decidable.search.search_gram_certificate` tries exact rational linear algebra
+first. Install with `python -m pip install -e '.[search]'` to enable optional
+CVXPY proposals. Every returned certificate passes the exact Gram verifier.
+`None` means the search was inconclusive.
+
+Use `decidable.report.Obligation` to name a check and label it `symbolic`,
+`finite`, `numeric`, or `control`. Supply a scope for finite checks. A composite
+can depend on earlier named obligations. `Report(...).run(path)` removes the
+old output before evaluating, records failures and exceptions, and writes a
+fresh report with counts. Labels and scope are supplied by the author.

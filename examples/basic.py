@@ -1,11 +1,12 @@
-"""Six exact checks with explicit hypotheses and certificates."""
+"""Seven exact checks with explicit hypotheses and certificates."""
 
 from fractions import Fraction
 
 from sympy import Poly, Symbol
 
-from decideable import (
+from decidable import (
     linear_implies,
+    matrix_rank,
     noncommutative_identity,
     rational_identity,
     verify_gram_certificate,
@@ -65,6 +66,7 @@ def main() -> int:
         "L4 Polynomial certificate": polynomial_valid,
         "L5 Linear implication": linear_holds,
         "L6 Formal series certificate": series_valid,
+        "L7 Exact matrix rank": matrix_rank([[1, 2, 3], [2, 4, 6], [0, 1, 1]]) == 2,
     }
     for label, result in checks.items():
         print(f"{label}: {result}")

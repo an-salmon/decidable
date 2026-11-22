@@ -1,7 +1,7 @@
 from fractions import Fraction
 from unittest import TestCase
 
-from decideable.linear import linear_feasible, linear_implies
+from decidable.linear import linear_feasible, linear_implies
 
 
 class LinearFeasibilityTests(TestCase):

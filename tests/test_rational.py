@@ -2,7 +2,7 @@ import unittest
 
 from sympy import Poly, Rational, symbols
 
-from decideable.rational import rational_identity
+from decidable.rational import rational_identity
 
 
 class RationalIdentityTests(unittest.TestCase):
