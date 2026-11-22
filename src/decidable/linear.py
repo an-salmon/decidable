@@ -1,8 +1,12 @@
 """Decide feasibility and implication for finite rational affine systems."""
 
+from __future__ import annotations
+
 from collections.abc import Iterable, Sequence
 from fractions import Fraction
 from typing import Union
+
+from .linalg import ExactVector, RationalMatrix, RationalVector, _exact_matrix, _exact_vector
 
 
 AffineForm = Sequence[Union[int, Fraction]]
@@ -123,3 +127,120 @@ def linear_implies(
     negated_target = tuple(-coefficient for coefficient in exact_target)
     constraints.append((negated_target, True))
     return not _feasible(constraints)
+
+
+def verify_farkas_certificate(
+    matrix: RationalMatrix, rhs: RationalVector, multipliers: RationalVector
+) -> bool:
+    """Replay infeasibility of the closed rational system A*x <= rhs.
+
+    Check y >= 0, y^T A = 0 and y^T rhs < 0. Entries must be int or
+    Fraction, with one multiplier and one right-hand entry per row. The
+    empty row sequence represents a 0-by-0 matrix.
+    """
+    rows, column_count = _exact_matrix(matrix)
+    bounds = _exact_vector(rhs, len(rows))
+    weights = _exact_vector(multipliers, len(rows))
+    return (
+        all(weight >= 0 for weight in weights)
+        and all(
+            sum(weight * row[column] for weight, row in zip(weights, rows)) == 0
+            for column in range(column_count)
+        )
+        and sum(weight * bound for weight, bound in zip(weights, bounds)) < 0
+    )
+
+
+def _keep_closed_row(
+    rows: dict[ExactVector, tuple[Fraction, ExactVector]],
+    form: ExactForm,
+    provenance: ExactVector,
+) -> None:
+    """Keep the strongest row among identical normalized slopes."""
+    scale = next((abs(entry) for entry in form[1:] if entry), Fraction(1))
+    slope = tuple(entry / scale for entry in form[1:])
+    constant = form[0] / scale
+    previous = rows.get(slope)
+    if previous is None or constant < previous[0]:
+        rows[slope] = constant, tuple(weight / scale for weight in provenance)
+
+
+def _closed_system_witness(
+    matrix: RationalMatrix, rhs: RationalVector
+) -> tuple[ExactVector | None, ExactVector | None]:
+    """Return either a feasible point or a Farkas certificate."""
+    matrix_rows, column_count = _exact_matrix(matrix)
+    bounds = _exact_vector(rhs, len(matrix_rows))
+    row_count = len(matrix_rows)
+    rows: dict[ExactVector, tuple[Fraction, ExactVector]] = {}
+    for index, (row, bound) in enumerate(zip(matrix_rows, bounds)):
+        provenance = tuple(Fraction(index == source) for source in range(row_count))
+        _keep_closed_row(rows, (bound, *(-entry for entry in row)), provenance)
+
+    # Each row is c + a*x >= 0. Its provenance expresses it as a
+    # nonnegative linear combination of the original rows.
+    levels = []
+    for dimension in range(column_count, -1, -1):
+        projected = {}
+        lower_bounds = []
+        upper_bounds = []
+        for slope, (constant, provenance) in rows.items():
+            if not any(slope):
+                if constant < 0:
+                    return None, provenance
+                continue
+            coefficient = slope[-1]
+            truncated = (constant, *slope[:-1])
+            if not coefficient:
+                _keep_closed_row(projected, truncated, provenance)
+                continue
+            scale = abs(coefficient)
+            normalized = tuple(entry / scale for entry in truncated)
+            combination = tuple(weight / scale for weight in provenance)
+            if coefficient > 0:
+                lower_bounds.append((normalized, combination))
+            else:
+                upper_bounds.append((normalized, combination))
+
+        if dimension == 0:
+            break
+        levels.append(
+            ([form for form, _ in lower_bounds], [form for form, _ in upper_bounds])
+        )
+        for lower, lower_weights in lower_bounds:
+            for upper, upper_weights in upper_bounds:
+                combined = tuple(left + right for left, right in zip(lower, upper))
+                provenance = tuple(
+                    left + right for left, right in zip(lower_weights, upper_weights)
+                )
+                _keep_closed_row(projected, combined, provenance)
+        rows = projected
+
+    point: list[Fraction] = []
+    for lower_bounds, upper_bounds in reversed(levels):
+        if lower_bounds:
+            # From lower(x) + x_i >= 0, choose the largest lower bound.
+            value = max(-_evaluate_affine(form, point) for form in lower_bounds)
+        elif upper_bounds:
+            value = min(_evaluate_affine(form, point) for form in upper_bounds)
+        else:
+            value = Fraction(0)
+        point.append(value)
+    return tuple(point), None
+
+
+def _evaluate_affine(form: ExactForm, point: list[Fraction]) -> Fraction:
+    return sum((entry * value for entry, value in zip(form[1:], point)), form[0])
+
+
+def find_farkas_certificate(
+    matrix: RationalMatrix, rhs: RationalVector
+) -> ExactVector | None:
+    """Find a rational infeasibility certificate for A*x <= rhs if one exists.
+
+    Exact Fourier–Motzkin elimination can require exponentially many rows.
+    Return None for a feasible system. This routine accepts closed
+    inequalities with the same input contract as verify_farkas_certificate.
+    """
+    _, multipliers = _closed_system_witness(matrix, rhs)
+    return multipliers

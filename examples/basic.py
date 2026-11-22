@@ -60,13 +60,13 @@ def main() -> int:
     )
 
     checks = {
-        "L1 Rational function identity": rational_holds,
-        "L2 Noncommutative identity": matrix_holds,
-        "L3 Gram certificate": gram_valid,
-        "L4 Polynomial certificate": polynomial_valid,
-        "L5 Linear implication": linear_holds,
-        "L6 Formal series certificate": series_valid,
-        "L7 Exact matrix rank": matrix_rank([[1, 2, 3], [2, 4, 6], [0, 1, 1]]) == 2,
+        "rational · Rational function identity": rational_holds,
+        "noncommutative · Noncommutative identity": matrix_holds,
+        "gram · Gram certificate": gram_valid,
+        "polynomial · Polynomial certificate": polynomial_valid,
+        "linear · Linear implication": linear_holds,
+        "series · Formal series certificate": series_valid,
+        "linalg · Exact matrix rank": matrix_rank([[1, 2, 3], [2, 4, 6], [0, 1, 1]]) == 2,
     }
     for label, result in checks.items():
         print(f"{label}: {result}")
