@@ -1,7 +1,7 @@
 from fractions import Fraction
 from unittest import TestCase
 
-from decideable.noncommutative import noncommutative_identity
+from decidable.noncommutative import bilinear_identity, noncommutative_identity
 
 
 class NoncommutativeIdentityTests(TestCase):
@@ -55,3 +55,77 @@ class NoncommutativeIdentityTests(TestCase):
             noncommutative_identity([], {})
         with self.assertRaises(ValueError):
             noncommutative_identity({}, {}, rules=[(("A",), ("B",))])
+
+
+class BilinearIdentityTests(TestCase):
+    def test_symmetric_symbol_allows_exchange_of_vectors(self):
+        self.assertIs(
+            bilinear_identity(
+                {("p", ("S",), "q"): 1},
+                {("q", ("S",), "p"): 1},
+                adjoints={"S": "S"},
+            ),
+            True,
+        )
+
+    def test_confluent_forms_distinguish_nonsymmetric_symbol(self):
+        self.assertIs(
+            bilinear_identity(
+                {("p", ("A",), "q"): 1},
+                {("q", ("A",), "p"): 1},
+                adjoints={"A": "At", "At": "A"},
+            ),
+            False,
+        )
+
+    def test_mixed_cross_terms_in_a_squared_norm_combine(self):
+        self.assertIs(
+            bilinear_identity(
+                {("p", ("B", "A"), "q"): 1, ("q", ("At", "B"), "p"): 1},
+                {("p", ("B", "A"), "q"): 2},
+                adjoints={"A": "At", "At": "A", "B": "B"},
+            ),
+            True,
+        )
+
+    def test_transposed_rules_used_in_same_scalar_orientation(self):
+        self.assertIs(
+            bilinear_identity(
+                {("p", ("At", "B"), "q"): 1},
+                {("p", ("Ut",), "q"): 1},
+                adjoints={"A": "At", "At": "A", "B": "B", "U": "Ut", "Ut": "U"},
+                rules=[(("B", "A"), ("U",))],
+            ),
+            True,
+        )
+
+    def test_confluence_checked_after_adding_transposed_rules(self):
+        self.assertIsNone(
+            bilinear_identity(
+                {("p", ("X", "A"), "q"): 1},
+                {("p", ("A", "X"), "q"): 1},
+                adjoints={"A": "A", "B": "B", "X": "X"},
+                rules=[(("A", "B"), ("X",))],
+            )
+        )
+
+    def test_unit_and_exact_coefficients(self):
+        half = Fraction(1, 2)
+        self.assertIs(
+            bilinear_identity(
+                {("p", (), "q"): half, ("q", (), "p"): half},
+                {("p", (), "q"): 1},
+                adjoints={},
+            ),
+            True,
+        )
+
+    def test_rejects_malformed_adjoint_declarations(self):
+        with self.assertRaises(ValueError):
+            bilinear_identity({}, {}, adjoints={"A": "At"})
+        with self.assertRaises(ValueError):
+            bilinear_identity({("p", ("A",), "q"): 0}, {}, adjoints={})
+        with self.assertRaises(ValueError):
+            bilinear_identity({}, {}, adjoints={}, rules=[(("A",), ())])
+        with self.assertRaises(TypeError):
+            bilinear_identity({("", (), "q"): 1}, {}, adjoints={})

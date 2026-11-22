@@ -2,9 +2,10 @@
 
 from collections.abc import Iterable, Sequence
 from fractions import Fraction
+from typing import Union
 
 
-AffineForm = Sequence[int | Fraction]
+AffineForm = Sequence[Union[int, Fraction]]
 ExactForm = tuple[Fraction, ...]
 Constraint = tuple[ExactForm, bool]
 

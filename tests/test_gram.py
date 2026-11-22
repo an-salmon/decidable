@@ -1,7 +1,10 @@
 from fractions import Fraction
 from unittest import TestCase
 
-from decideable.gram import verify_gram_certificate
+from sympy import Poly, symbols
+
+from decidable.gram import verify_gram_certificate
+from decidable.parameters import PositiveParameters
 
 
 class GramCertificateTests(TestCase):
@@ -65,3 +68,46 @@ class GramCertificateTests(TestCase):
             verify_gram_certificate(0, {(0, 0): 0})
         with self.assertRaises(ValueError):
             verify_gram_certificate(-1, {})
+
+    def test_certificate_uniform_in_positive_parameter(self):
+        p = symbols("p")
+        parameters = PositiveParameters((p,))
+        parameter = parameters.rational(Poly(p, p), Poly(1, p))
+        reciprocal = parameters.rational(Poly(1, p), Poly(p, p))
+        target = {(0, 0): parameter, (0, 1): 2, (1, 1): reciprocal}
+        self.assertTrue(
+            verify_gram_certificate(
+                2, target, squares=[(parameter, (1, reciprocal))], parameters=parameters
+            )
+        )
+        with self.assertRaises(TypeError):
+            verify_gram_certificate(2, target, squares=[(parameter, (1, reciprocal))])
+
+    def test_parameterized_weights_require_a_sign_proof(self):
+        p = symbols("p")
+        parameters = PositiveParameters((p,))
+        multiplier = parameters.rational(Poly(p - 1, p), Poly(1, p))
+        hypothesis = {(0, 0): 1}
+        target = {(0, 0): multiplier}
+        self.assertTrue(
+            verify_gram_certificate(
+                1, target, equations=[(multiplier, hypothesis)], parameters=parameters
+            )
+        )
+        self.assertFalse(
+            verify_gram_certificate(
+                1, target, inequalities=[(multiplier, hypothesis)], parameters=parameters
+            )
+        )
+        self.assertFalse(
+            verify_gram_certificate(
+                1, target, squares=[(multiplier, (1,))], parameters=parameters
+            )
+        )
+
+    def test_parameterized_coefficients_reject_possible_poles(self):
+        p = symbols("p")
+        parameters = PositiveParameters((p,))
+        pole = parameters.field.from_sympy(1 / (p - 1))
+        with self.assertRaises(ValueError):
+            verify_gram_certificate(1, {}, squares=[(0, (pole,))], parameters=parameters)
