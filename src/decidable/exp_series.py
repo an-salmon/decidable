@@ -149,9 +149,6 @@ def _check_signs(certificate: ExpSeriesCertificate) -> CheckResult:
 
 
 def _check_auto(P: Poly, Q: Poly, tail_start: int) -> CheckResult:
-    if P.is_zero:
-        return _check_signs(_certificate(P, Q, tail_start))
-
     terms = _falling_terms(P)
     if P.LC() < 0:
         # H has the same leading coefficient as P, so it is eventually negative.
@@ -159,12 +156,25 @@ def _check_auto(P: Poly, Q: Poly, tail_start: int) -> CheckResult:
             tail_start = max(1, 2 * tail_start)
         return _negative_coefficient(tail_start)
 
-    # Every forward difference up to degree P has positive leading
-    # coefficient, so at a sufficiently large index all are nonnegative.
+    # The forward differences are eventually nonnegative. Check each new
+    # prefix block before increasing the cutoff again.
     size = _tail_size(P)
-    while any(value < 0 for value in _forward_differences(terms, tail_start, size)):
+    q_terms = {j: factorial(j) * Fraction(c) for (j,), c in Q.terms() if c}
+    prefix = []
+    while True:
+        for index in range(len(prefix), tail_start):
+            coefficient = _tail_value(terms, index) + q_terms.get(index, 0)
+            if coefficient < 0:
+                return _negative_coefficient(index)
+            prefix.append(coefficient)
+
+        differences = _forward_differences(terms, tail_start, size)
+        if differences[0] < 0:
+            return _negative_coefficient(tail_start)
+        if all(value >= 0 for value in differences):
+            certificate = ExpSeriesCertificate(tail_start, tuple(prefix), differences)
+            return _check_signs(certificate)
         tail_start = max(1, 2 * tail_start)
-    return _check_signs(_certificate(P, Q, tail_start))
 
 
 def check_exp_series(

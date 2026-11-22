@@ -283,7 +283,7 @@ def search_series_certificate(
         f"Formal coefficientwise nonnegativity under the supplied series hypotheses "
         f"using {len(columns)} supplied terms and at most {support} nonzero weights"
     )
-    weights = _find_weights(cleared_target, columns, support)
+    weights = _find_weights(cleared_target, columns, max_support)
     if weights is not None:
         weight_iter = iter(weights)
         replay_groups = [
@@ -360,7 +360,7 @@ def search_polynomial_certificate(
         f"Real polynomial nonnegativity under the supplied hypotheses "
         f"using {len(columns)} supplied terms and at most {support} nonzero weights"
     )
-    weights = _find_weights(target, columns, support, unrestricted=len(equations))
+    weights = _find_weights(target, columns, max_support, unrestricted=len(equations))
     if weights is not None:
         weight_iter = iter(weights)
         certificate = PolynomialCertificate(
@@ -406,16 +406,18 @@ def _support_limit(max_support: int | None, term_count: int) -> int:
 
 
 def _find_weights(
-    target: Poly, columns: tuple[Poly, ...], support: int, *, unrestricted: int = 0
+    target: Poly, columns: tuple[Poly, ...], support: int | None, *, unrestricted: int = 0
 ) -> tuple[Fraction, ...] | None:
     if target.is_zero:
         return (Fraction(0),) * len(columns)
-    if not support:
+    if not columns or support == 0:
         return None
 
     monomials = sorted(set(target.monoms()).union(*(poly.monoms() for poly in columns)))
     matrix = Matrix([[poly.nth(*monomial) for poly in columns] for monomial in monomials])
     values = Matrix([target.nth(*monomial) for monomial in monomials])
+    if support is None:
+        return _solve_weight_feasibility(matrix, values, unrestricted)
 
     # A representation of minimal support has independent columns. In a
     # dependent support, move along a linear dependence until one weight
@@ -435,3 +437,33 @@ def _find_weights(
                 weights[index] = Fraction(value.p, value.q)
             return tuple(weights)
     return None
+
+
+def _solve_weight_feasibility(
+    matrix: Matrix, values: Matrix, unrestricted: int
+) -> tuple[Fraction, ...] | None:
+    from .linear import _closed_system_witness
+
+    try:
+        solution, parameters = matrix.gauss_jordan_solve(values)
+    except ValueError:
+        return None
+
+    at_zero = dict.fromkeys(parameters, 0)
+    candidate = solution.subs(at_zero)
+    if any(weight < 0 for weight in candidate[unrestricted:]):
+        if not parameters.rows:
+            return None
+
+        # The exact solution is affine in the free parameters. For each
+        # constrained weight c + a*t >= 0, project -a*t <= c.
+        rows = []
+        bounds = []
+        for expression, intercept in zip(solution[unrestricted:], candidate[unrestricted:]):
+            rows.append(tuple(-Fraction(expression.coeff(parameter)) for parameter in parameters))
+            bounds.append(Fraction(intercept))
+        point, _ = _closed_system_witness(rows, bounds)
+        if point is None:
+            return None
+        candidate = solution.subs(dict(zip(parameters, point)))
+    return tuple(Fraction(weight) for weight in candidate)

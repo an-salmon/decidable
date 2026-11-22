@@ -81,7 +81,6 @@ class Report:
 
         outcomes: dict[str, Outcome] = {}
         scopes: dict[str, str] = {}
-        legacy: set[str] = set()
         for obligation in self.obligations:
             dependencies = tuple(outcomes[name] for name in obligation.depends_on)
             failed = [item.obligation.name for item in dependencies if not item.passed]
@@ -90,7 +89,6 @@ class Report:
             if scope is None and len(dependency_scopes) == 1:
                 scope = next(iter(dependency_scopes))
             compatible_scope = not dependency_scopes or dependency_scopes == {scope}
-            only_legacy = legacy.issuperset(obligation.depends_on)
             numerical = any(item.result.status == "numerical_evidence" for item in dependencies)
             passed = False
             if failed:
@@ -99,15 +97,9 @@ class Report:
                 status, detail = "inconclusive", "dependency scopes do not match the obligation scope"
             elif numerical and obligation.kind != "numeric":
                 status, detail = "numerical_evidence", "numerical dependencies cannot establish an exact conclusion"
-                # Keep the legacy Boolean presentation for composite reports.
-                passed = only_legacy and obligation.check is None
-                if passed:
-                    legacy.add(obligation.name)
             elif obligation.check is None:
                 status = "numerical_evidence" if obligation.kind == "numeric" else "verified"
                 detail, passed = "all dependencies passed", True
-                if only_legacy:
-                    legacy.add(obligation.name)
             else:
                 try:
                     result = obligation.check()
@@ -132,8 +124,6 @@ class Report:
                         if passed:
                             status = "numerical_evidence" if obligation.kind == "numeric" else "verified"
                         detail = "" if passed else "check did not return True"
-                        if only_legacy:
-                            legacy.add(obligation.name)
                 except Exception as exc:
                     status, detail = "inconclusive", f"{type(exc).__name__}: {exc}"
             if scope:
@@ -151,17 +141,25 @@ class Report:
         lines = []
         for result in results:
             obligation = result.obligation
-            status = "PASS" if result.passed else "FAIL"
+            if result.result.status == "numerical_evidence":
+                label = "EVIDENCE"
+            else:
+                label = "PASS" if result.result.status == "verified" else "FAIL"
             scope = result.result.scope if result.result.scope != "Declared obligation" else obligation.scope
             scope = f" ({scope})" if scope else ""
             detail = f" | {result.detail}" if result.detail else ""
             evidence_status = ""
             if result.result.status != "verified":
                 evidence_status = f" | {result.result.status}"
-            line = f"{status} [{obligation.kind}]{scope} {obligation.name}{detail}{evidence_status}"
+            line = f"{label} [{obligation.kind}]{scope} {obligation.name}{detail}{evidence_status}"
             lines.append(" ".join(line.splitlines()))
-        passed = sum(result.passed for result in results)
-        lines.append(f"{passed} passed, {len(results) - passed} failed")
+        passed = sum(result.result.status == "verified" for result in results)
+        evidence = sum(result.result.status == "numerical_evidence" for result in results)
+        failed = len(results) - passed - evidence
+        summary = f"{passed} passed, {failed} failed"
+        if evidence:
+            summary += f", {evidence} numerical evidence"
+        lines.append(summary)
 
         with NamedTemporaryFile(mode="w", encoding="utf-8", dir=path.parent, delete=False) as temp:
             temporary_path = Path(temp.name)

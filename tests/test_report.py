@@ -24,11 +24,12 @@ class ReportTests(unittest.TestCase):
                 Obligation("control", lambda: True, kind="control"),
                 Obligation("complete", depends_on=("fresh", "control")),
             ])
-            self.assertEqual([item.passed for item in report.run(path)], [True, False, False, True, True])
+            self.assertEqual([item.passed for item in report.run(path)], [True, False, False, True, False])
             contents = path.read_text(encoding="utf-8")
             self.assertNotIn("stale PASS", contents)
             self.assertIn("FAIL [finite] (n <= 4) limited | RuntimeError: broken", contents)
-            self.assertIn("3 passed, 2 failed", contents)
+            self.assertIn("EVIDENCE [symbolic] complete", contents)
+            self.assertIn("1 passed, 2 failed, 2 numerical evidence", contents)
 
     def test_invalid_outcomes_and_report_definition(self):
         results = Report([Obligation("unknown", lambda: None), Obligation("numeric", lambda: 1)]).run()

@@ -120,25 +120,27 @@ def check_kernel_domination(
         )
 
     polynomial_end = 0 if polynomial.is_zero else polynomial.degree() + 1
-    if tail_start is None:
-        tail_start = polynomial_end
-        if leading_amplitude < 0:
-            while sum(
-                abs(amplitude) * ratio**tail_start for ratio, amplitude in lower_terms
-            ) >= -leading_amplitude:
-                tail_start = max(1, 2 * tail_start)
-            return _negative_coefficient(tail_start, coefficient_at(tail_start))
-        while negative_bound_at(tail_start) > leading_amplitude:
-            tail_start = max(1, 2 * tail_start)
-    else:
-        tail_start = max(tail_start, polynomial_end)
+    automatic = tail_start is None
+    if automatic and leading_amplitude < 0:
+        index = 0
+        while (coefficient := coefficient_at(index)) >= 0:
+            index = max(polynomial_end, 1, 2 * index)
+        return _negative_coefficient(index, coefficient)
 
-    for index in range(tail_start):
-        coefficient = coefficient_at(index)
-        if coefficient < 0:
-            return _negative_coefficient(index, coefficient)
+    tail_start = polynomial_end if tail_start is None else max(tail_start, polynomial_end)
+    checked = 0
+    while True:
+        for index in range(checked, tail_start):
+            coefficient = coefficient_at(index)
+            if coefficient < 0:
+                return _negative_coefficient(index, coefficient)
 
-    negative_bound = negative_bound_at(tail_start)
+        negative_bound = negative_bound_at(tail_start)
+        if not automatic or negative_bound <= leading_amplitude:
+            break
+        checked = tail_start
+        tail_start = max(1, 2 * tail_start)
+
     bound_witness = {
         "tail_start": tail_start,
         "leading_amplitude": leading_amplitude,
