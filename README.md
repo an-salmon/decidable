@@ -1,20 +1,28 @@
 # decidable
 
-`decidable` checks finite algebraic statements that arise inside mathematical
-proofs. To use it, write down the hypotheses and conclusion of a proof step,
-then choose the check that matches their mathematical form. A successful check
-establishes the encoded statement. The derivation of that statement from the
-original proof remains part of the mathematical argument.
+`decidable` checks exact algebraic claims that arise inside mathematical
+proofs. Choose the fragment that matches the claim and supply exact inputs,
+the hypotheses, and a certificate when the operation requires one. Each
+structured check returns a status and scope, with a witness when available.
+The caller justifies the reduction from the original mathematical problem to
+the encoded claim.
 
-| Level | Check | What it establishes |
+| Fragment ID | Check | What it establishes |
 | --- | --- | --- |
-| L1 | `rational_identity` | Equality of rational functions over the rationals. |
-| L2 | `noncommutative_identity` | Equality of expressions in matrix words modulo supplied relations. |
-| L3 | `verify_gram_certificate` | Validity of a supplied certificate for a linear inequality in inner products. |
-| L4 | `verify_polynomial_certificate` | Validity of a supplied certificate for a real polynomial inequality. |
-| L5 | `linear_feasible`, `linear_implies` | Feasibility and implication for finite systems of affine inequalities. |
-| L6 | `verify_series_certificate` | Validity of a supplied certificate for a coefficientwise inequality of formal series. |
-| L7 | `matrix_rank` | Rank of an explicit matrix over the rationals. |
+| `rational` | `rational_identity` | Equality of rational functions over the rationals. |
+| `noncommutative` | `noncommutative_identity` | Equality of expressions in matrix words modulo supplied relations. |
+| `gram` | `verify_gram_certificate` | Validity of a supplied certificate for a linear inequality in inner products. |
+| `polynomial` | `verify_polynomial_certificate` | Validity of a supplied certificate for a real polynomial inequality. |
+| `linear` | `linear_feasible`, `linear_implies` | Feasibility and implication for finite systems of affine inequalities. |
+| `series` | `verify_series_certificate` | Validity of a supplied certificate for a coefficientwise inequality of formal series. |
+| `linalg` | `matrix_rank` | Rank of an explicit matrix over the rationals. |
+
+`decidable.fragments.FRAGMENTS` lists the stable fragment IDs and the operation
+IDs accepted by `dispatch(fragment, operation, claim)`. Dispatch takes a typed
+claim such as `GramCertificateClaim(1, {(0, 0): 1}, squares=((1, (1,)),))`.
+An unknown route or mismatched claim type yields `unsupported`. A certificate
+that fails exact replay yields `inconclusive`. A complete decision procedure
+may return `disproved` within the scope it reports.
 
 ## Run the examples
 
@@ -24,6 +32,7 @@ With Python 3.9 or newer, run these commands from the repository root.
 python -m pip install -e .
 python examples/basic.py
 python examples/parameterized_series.py
+python examples/harmonic_excess.py
 python -m unittest discover -s tests
 ```
 
@@ -72,7 +81,8 @@ unresolved by that check.
 
 ## Positive parameters
 
-L1, L3, L4 and L6 accept `parameters=PositiveParameters((p, q, ...))`.
+The rational, Gram, polynomial certificate, and formal series certificate
+checks accept `parameters=PositiveParameters((p, q, ...))`.
 Declare every parameter as independently strictly positive. Encode a strict
 ordering such as `sigma > rho > 0` by declaring `rho` and `gap`, then use
 `sigma = rho + gap` when constructing the inputs. Use `parameters.rational`
@@ -132,8 +142,8 @@ their coefficients.
 
 Pass a rectangular sequence of rows to `matrix_rank`. The entries are exact
 integers or `Fraction` objects. The calculation uses rational Gaussian
-elimination. See [the runnable example](examples/basic.py) for checks at all
-seven levels.
+elimination. See [the runnable example](examples/basic.py) for checks across
+all seven fragments.
 
 ## Search and reporting
 
@@ -146,4 +156,28 @@ Use `decidable.report.Obligation` to name a check and label it `symbolic`,
 `finite`, `numeric`, or `control`. Supply a scope for finite checks. A composite
 can depend on earlier named obligations. `Report(...).run(path)` removes the
 old output before evaluating, records failures and exceptions, and writes a
-fresh report with counts. Labels and scope are supplied by the author.
+fresh report with counts. Each outcome has a structured `result`. A composite
+with one stated dependency scope inherits that scope. When multiple scoped
+dependencies are used, the scope labels must match. Numerical evidence
+propagates as numerical evidence through dependencies. Legacy Boolean
+composites retain their pass counts, with the evidence status shown alongside.
+
+## Specialized checks and reductions
+
+| Module | Public operations | Guarantee |
+| --- | --- | --- |
+| `decidable.kernel_domination` | `check_kernel_domination` | Exact coefficientwise comparison of rational kernels. Pass `tail_start=None` to decide the supported simple positive rational pole case with an automatically chosen cutoff. |
+| `decidable.positive_state` | `check_positive_state`, `find_positive_state` | A rational nonnegative state matrix admits a strictly positive linear functional contracting at the supplied rational rate, or exact multipliers rule one out. |
+| `decidable.linear` | `verify_farkas_certificate`, `find_farkas_certificate` | A witness verifies infeasibility of a closed rational affine system. |
+| `decidable.linalg` | `matrix_nullspace`, `matrix_solve` | A rational basis of the nullspace and an exact solution of a consistent rectangular system. |
+| `decidable.jets` | `check_jet_identity`, `total_derivative`, `two_scale_derivative` | A differential polynomial identity follows from the supplied algebraic jet relations in the registered dimension. |
+| `decidable.reductions` | `expand_gram_inner_product`, `reduce_spectral_quadratic_form` | Bilinear expansion into Gram coordinates and scalar evaluation on an explicitly assumed finite spectral support. |
+| `decidable.exp_series` | `check_exp_series`, `verify_exp_series_certificate` | An exact Taylor prefix and integer-tail certificate prove $P(x)e^x+Q(x) \ge 0$ on $x \ge 0$. Use `tail_start="auto"` to decide the Taylor coefficient condition. |
+| `decidable.search` | `search_series_certificate`, `search_polynomial_certificate` | A bounded search over an explicit basis proposes a witness and checks it exactly. |
+| `decidable.realization` | `recurrence_to_series` | An exact generating function for a finite scalar recurrence with rational constant coefficients. |
+
+The [harmonic excess example](examples/harmonic_excess.py) demonstrates a
+kernel comparison over all modes. Its input is the nonnegative modal expansion
+supplied by the mathematical argument. The
+[rewrite design](docs/rewrite-design.md) describes the check boundaries and the
+remaining research directions.
