@@ -2,12 +2,13 @@
 
 `decidable` checks exact algebraic claims that arise inside mathematical
 proofs. Choose the fragment that matches the claim and supply exact inputs,
-the hypotheses, and a certificate when the operation requires one. Each
-structured check returns a status and scope, with a witness when available.
-The caller justifies the reduction from the original mathematical problem to
-the encoded claim.
+the hypotheses, and a certificate when the operation requires one. The caller
+justifies the reduction from the original mathematical problem to the encoded
+claim.
 
-| Fragment ID | Check | What it establishes |
+The table lists direct Python calls, each with its own return type.
+
+| Fragment ID | Direct check | What it establishes |
 | --- | --- | --- |
 | `rational` | `rational_identity` | Equality of rational functions over the rationals. |
 | `noncommutative` | `noncommutative_identity` | Equality of expressions in matrix words modulo supplied relations. |
@@ -17,9 +18,18 @@ the encoded claim.
 | `series` | `verify_series_certificate` | Validity of a supplied certificate for a coefficientwise inequality of formal series. |
 | `linalg` | `matrix_rank` | Rank of an explicit matrix over the rationals. |
 
-`decidable.fragments.FRAGMENTS` lists the stable fragment IDs and the operation
-IDs accepted by `dispatch(fragment, operation, claim)`. Dispatch takes a typed
-claim such as `GramCertificateClaim(1, {(0, 0): 1}, squares=((1, (1,)),))`.
+`dispatch(fragment, operation, claim)` accepts a typed claim such as
+`GramCertificateClaim(1, {(0, 0): 1}, squares=((1, (1,)),))` and returns a
+`CheckResult` with a status, scope, and a witness when available. The
+`decidable.fragments.FRAGMENTS` registry lists these supported routes.
+
+| Fragment ID | Dispatch operation IDs |
+| --- | --- |
+| `gram` | `verify_gram_certificate` |
+| `linear` | `linear_implies`, `find_positive_state` |
+| `series` | `check_kernel_domination`, `check_exp_series` |
+| `linalg` | `matrix_rank` |
+
 An unknown route or mismatched claim type yields `unsupported`. A certificate
 that fails exact replay yields `inconclusive`. A complete decision procedure
 may return `disproved` within the scope it reports.
@@ -158,22 +168,23 @@ can depend on earlier named obligations. `Report(...).run(path)` removes the
 old output before evaluating, records failures and exceptions, and writes a
 fresh report with counts. Each outcome has a structured `result`. A composite
 with one stated dependency scope inherits that scope. When multiple scoped
-dependencies are used, the scope labels must match. Numerical evidence
-propagates as numerical evidence through dependencies. Legacy Boolean
-composites retain their pass counts, with the evidence status shown alongside.
+dependencies are used, the scope labels must match. The report counts verified outcomes as `PASS` and
+counts numerical outcomes separately as `EVIDENCE`. If its dependencies otherwise pass, a symbolic composite backed by numerical
+evidence is also recorded as `EVIDENCE`.
 
 ## Specialized checks and reductions
 
 | Module | Public operations | Guarantee |
 | --- | --- | --- |
 | `decidable.kernel_domination` | `check_kernel_domination` | Exact coefficientwise comparison of rational kernels. Pass `tail_start=None` to decide the supported simple positive rational pole case with an automatically chosen cutoff. |
-| `decidable.positive_state` | `check_positive_state`, `find_positive_state` | A rational nonnegative state matrix admits a strictly positive linear functional contracting at the supplied rational rate, or exact multipliers rule one out. |
+| `decidable.positive_state` | `check_positive_state` | Checks whether the supplied weights are strictly positive and define a linear functional that contracts at the given rational rate for a nonnegative rational state matrix. |
+| `decidable.positive_state` | `find_positive_state` | Decides whether such weights exist at the given rate and returns weights or exact Farkas multipliers proving infeasibility. |
 | `decidable.linear` | `verify_farkas_certificate`, `find_farkas_certificate` | A witness verifies infeasibility of a closed rational affine system. |
 | `decidable.linalg` | `matrix_nullspace`, `matrix_solve` | A rational basis of the nullspace and an exact solution of a consistent rectangular system. |
 | `decidable.jets` | `check_jet_identity`, `total_derivative`, `two_scale_derivative` | A differential polynomial identity follows from the supplied algebraic jet relations in the registered dimension. |
 | `decidable.reductions` | `expand_gram_inner_product`, `reduce_spectral_quadratic_form` | Bilinear expansion into Gram coordinates and scalar evaluation on an explicitly assumed finite spectral support. |
 | `decidable.exp_series` | `check_exp_series`, `verify_exp_series_certificate` | An exact Taylor prefix and integer-tail certificate prove $P(x)e^x+Q(x) \ge 0$ on $x \ge 0$. Use `tail_start="auto"` to decide the Taylor coefficient condition. |
-| `decidable.search` | `search_series_certificate`, `search_polynomial_certificate` | A bounded search over an explicit basis proposes a witness and checks it exactly. |
+| `decidable.search` | `search_series_certificate`, `search_polynomial_certificate` | Search uses exact rational arithmetic over the full supplied finite basis by default and verifies any witness it finds. Set `max_support` to bound the number of nonzero weights. An unsuccessful search is inconclusive for the claim. |
 | `decidable.realization` | `recurrence_to_series` | An exact generating function for a finite scalar recurrence with rational constant coefficients. |
 
 The [harmonic excess example](examples/harmonic_excess.py) demonstrates a
