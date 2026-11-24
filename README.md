@@ -55,6 +55,22 @@ rejects identically zero denominators. To use a verified identity at a
 particular point, also establish that both original denominators are nonzero
 there.
 
+## Monomial and jet checks
+
+`decidable.checks.loglinear_zero` checks whether a product of powers of
+positive bases equals one. Declare the positive base symbols and the
+symbols allowed in rational exponents. Use `evaluate=False` when building
+products and powers whose original structure must be checked. The identity
+holds wherever the original exponent denominators are nonzero.
+
+For an explicit jet certificate, use `total_derivative` to compute each
+derivative of the hypothesis, multiply by the corresponding certificate
+polynomial, and subtract the sum from the target. Pass that residual to
+`check_jet_identity` with its default right-hand side of zero. To combine
+a fixed list of dimensions in a report, return a Boolean indicating
+whether every per-dimension result is verified. Use the dimension list as
+the scope and mark the aggregate check and its dependent assemblies `finite`.
+
 ## Noncommutative identities
 
 Represent an expression as a dictionary from words to rational coefficients.
