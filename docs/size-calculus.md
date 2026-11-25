@@ -43,10 +43,60 @@ inequalities. Receipts bind the problem to its SHA-256 digest. A matching
 `expect` field marks an entry as a control. A passing control carries its
 actual verdict and a separate `passed` flag.
 
-The portable checker covers univariate polynomial moments on closed
-bounded intervals and right half-lines. Typed size derivations,
-stretched-exponential average witnesses and dilation checks use the Python
-API. The interval searches are reference algorithms for small problems.
-The broader semialgebraic decision procedure, symbolic exponent domains,
-arbitrary measurable aggregation, sharp-scale search and retrospective
-corpus are further parts of the draft.
+To fix a run's expected identifiers, wrap the list as
+`{"expected_ids":["square"],"entries":[...]}`. The runner validates
+membership and uses the declared order. Checker errors yield failed
+receipts even under a control expecting a rejected submission.
+
+## Exact decisions
+
+Use `{"kind":"decide"}` to decide a moment implication. This route
+accepts multivariate rational polynomials with Boolean combinations of
+polynomial support comparisons. A version-1 problem may encode an algebraic
+graph with extra coordinates and isolating inequalities. The optional system
+Z3 library supplies the exact quantifier-free nonlinear real arithmetic
+procedure. A timed-out query gives no verdict.
+
+With $m$ input budgets, the query searches for an output violation
+supported on at most $m+1$ atoms. Given any violating law, truncate the
+output integrand at a sufficiently high finite level to preserve strict
+excess. Finite moment representation preserves that truncated moment and
+the input moments. Optimizing the actual output on the resulting finite
+support gives a vertex with at most $m+1$ positive masses. This reduction
+also works at a boundary budget, where a rational grid can miss every
+feasible law. A solver refutation reports exact algebraic coordinate and
+mass assignments. The optional backend is part of the trusted decision
+procedure for this route.
+
+The Python API additionally exposes guarded E1 certificates, the
+common exponential chart for rational rates, typed size derivations,
+scale-share proofs and dilation checks. Conservative rational grids can
+find average-rule refutations and refine a sharp-scale bracket. Its upper
+endpoint comes from the aggregation theorem, so the bracket may remain
+loose even after the grid search has settled.
+
+## Size and scale rules
+
+`verify_derivation` replays the fixed-exponent rules. Integral
+aggregation requires a typed premise for the measurable family, its
+uniform bound and its total scale. The independent mean and Bernstein
+rules require an independence declaration for the same summands as the
+bounded-mean premises. These are caller hypotheses.
+
+The `parametric_*` operations use `AffineDomain` and preserve strict
+guards. Aggregation returns a pair of disjoint branches when the domain
+crosses reciprocal exponent one. Polynomial size functions have a
+separate Python API for pointwise transfer, class comparison and convex
+aggregation. These two APIs use explicit typed operations.
+
+For scale comparison, `rewrite_scale` applies a supplied monomial
+equality, and `verify_scale_domination` checks a supplied partition into
+coefficient shares. Generic claims state which deterministic parameters
+the constant may depend on, and exact claims spend only their fixed
+coefficient budgets. Dilation checks concern weight compatibility.
+
+The portable schema covers moment problems and receipts. Typed
+derivations and scale proofs use the Python API. General nonlinear
+symbolic exponent domains and transcendental combinations beyond E1 and
+the common exponential chart remain outside those checkers. The draft's
+retrospective counts require the original case-level transcriptions.

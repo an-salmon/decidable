@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from fractions import Fraction
 
-from sympy import Add, Expr, Mul, Pow, Rational
+from sympy import Add, Expr, Float, Mul, Pow, Rational, log
 
 from ..report import CheckResult
 from .moments import Exact, exact
@@ -48,6 +48,8 @@ def norm_weight(
 
 
 def _extrema(expression, weights: Mapping[Expr, Fraction]) -> tuple[Fraction, Fraction]:
+    if expression == log(2):
+        return Fraction(0), Fraction(0)
     if expression in weights:
         return weights[expression], weights[expression]
     if type(expression) in (int, Fraction) or isinstance(expression, Rational):
@@ -62,8 +64,8 @@ def _extrema(expression, weights: Mapping[Expr, Fraction]) -> tuple[Fraction, Fr
     if type(expression) is Pow and isinstance(expression.exp, Rational):
         low, high = _extrema(expression.base, weights)
         exponent = Fraction(expression.exp)
-        scaled = low * exponent, high * exponent
-        return min(scaled), max(scaled)
+        # These are the weights at zero and infinity, in that order.
+        return low * exponent, high * exponent
     raise _UnknownWeight(f"No positive dilation weight for {expression}.")
 
 
@@ -76,6 +78,11 @@ def check_scaling(lhs, rhs, weights: Mapping[Expr, Exact], *, limit: str = "both
     """
     if limit not in ("small", "large", "both"):
         raise ValueError("limit must be small, large or both")
+    for atom in weights:
+        if not isinstance(atom, Expr) or atom.has(Float):
+            raise TypeError("declare exact symbolic weight keys")
+        if atom.is_number or atom.is_commutative is not True or atom.is_positive is False:
+            raise ValueError("declare weights for nonconstant positive quantities")
     weights = {atom: exact(weight, "dilation weight") for atom, weight in weights.items()}
     scope = f"Dilation weight condition ({limit}) for the supplied family"
     try:

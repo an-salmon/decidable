@@ -17,6 +17,10 @@ from ..report import CheckResult
 Exact = Union[int, Fraction]
 
 
+class _InvalidMomentInput(ValueError):
+    """A declared moment domain or supplied witness is malformed."""
+
+
 def exact(value, name="value") -> Fraction:
     if type(value) not in (int, Fraction):
         raise TypeError(f"{name} must be an int or Fraction")
@@ -62,20 +66,20 @@ class MomentProblem:
         budgets = tuple(exact(value, "input budget") for value in self.budgets)
         output = _validate_polynomial(self.output)
         if len(output.gens) != 1 or type(output.gen) is not Symbol:
-            raise ValueError("use one common polynomial coordinate")
+            raise _InvalidMomentInput("use one common polynomial coordinate")
         if len(inputs) != len(budgets):
-            raise ValueError("supply one budget per input")
+            raise _InvalidMomentInput("supply one budget per input")
         output_budget = exact(self.output_budget, "output budget")
         lower = exact(self.lower, "lower endpoint")
         upper = None if self.upper is None else exact(self.upper, "upper endpoint")
         if upper is not None and upper < lower:
-            raise ValueError("support endpoints must be ordered")
+            raise _InvalidMomentInput("support endpoints must be ordered")
         if output_budget < 0 or any(budget < 0 for budget in budgets):
-            raise ValueError("budgets must be nonnegative")
+            raise _InvalidMomentInput("budgets must be nonnegative")
         for poly in (*inputs, output):
             _validate_polynomial(poly, output.gens)
             if not _nonnegative(poly, lower, upper):
-                raise ValueError("moment integrands must be nonnegative on the support")
+                raise _InvalidMomentInput("moment integrands must be nonnegative on the support")
         for name, value in (
             ("inputs", tuple(poly.to_field() for poly in inputs)),
             ("output", output.to_field()), ("budgets", budgets), ("output_budget", output_budget),
@@ -125,7 +129,7 @@ def verify_majorant(
     intercept = exact(certificate.intercept, "intercept")
     slopes = tuple(exact(slope, "slope") for slope in certificate.slopes)
     if len(slopes) != len(problem.inputs):
-        raise ValueError("supply one slope per input")
+        raise _InvalidMomentInput("supply one slope per input")
     if any(slope < 0 for slope in slopes):
         return CheckResult("inconclusive", problem.scope, "Majorant slopes must be nonnegative.")
     cost = intercept + sum(slope * budget for slope, budget in zip(slopes, problem.budgets))
@@ -149,7 +153,7 @@ def _points(problem: MomentProblem, points: Iterable[Exact]) -> tuple[Fraction, 
     if not points or any(point < problem.lower or
                          (problem.upper is not None and point > problem.upper)
                          for point in points):
-        raise ValueError("supply a nonempty set of points on the original support")
+        raise _InvalidMomentInput("supply a nonempty set of points on the original support")
     return points
 
 
@@ -189,25 +193,37 @@ def grid_optimum(problem: MomentProblem, grid: Iterable[Exact]) -> GridOptimum |
     """
     points = tuple(dict.fromkeys(_points(problem, grid)))
     *inputs, output = _values(problem, points)
+    optimum = _grid_optimum_rows(tuple(inputs), problem.budgets, output)
+    if optimum is None:
+        return None
+    support, masses, value = optimum
+    return GridOptimum(points, AtomicLaw(tuple(points[i] for i in support), masses), value)
+
+
+def _grid_optimum_rows(
+    inputs: tuple[tuple[Fraction, ...], ...],
+    budgets: tuple[Fraction, ...],
+    output: tuple[Fraction, ...],
+) -> tuple[tuple[int, ...], tuple[Fraction, ...], Fraction] | None:
+    """Maximize a rational grid objective, returning indices, masses and value."""
     best = None
-    for size in range(1, min(len(points), len(inputs) + 1) + 1):
-        for support in combinations(range(len(points)), size):
+    for size in range(1, min(len(output), len(inputs) + 1) + 1):
+        for support in combinations(range(len(output)), size):
             rows = [tuple(row[i] for i in support) for row in inputs]
             for active in combinations(range(len(inputs)), size - 1):
                 solution = matrix_solve(
                     [(1,) * size, *(rows[i] for i in active)],
-                    [1, *(problem.budgets[i] for i in active)],
+                    [1, *(budgets[i] for i in active)],
                 )
                 if solution is None or solution.nullspace or min(solution.particular) <= 0:
                     continue
                 masses = solution.particular
                 if any(sum(p * g for p, g in zip(masses, row)) > budget
-                       for row, budget in zip(rows, problem.budgets)):
+                       for row, budget in zip(rows, budgets)):
                     continue
                 value = sum(p * output[i] for p, i in zip(masses, support))
-                if best is None or value > best.value:
-                    law = AtomicLaw(tuple(points[i] for i in support), masses)
-                    best = GridOptimum(points, law, value)
+                if best is None or value > best[2]:
+                    best = support, masses, value
     return best
 
 

@@ -182,16 +182,24 @@ assert grid_optimum(problem, (1, 3)).value == Fraction(7, 4)
 tangencies, then replays them on the original support. An unresolved search
 returns `inconclusive`. `verify_average_refutation` uses rational
 enclosures to check a finite counterexample for a stretched-exponential
-weighted average, and `sharp_closed_tail` computes the sharp bound in the
-raw moment chart $Z\ge1$, $\mathbb E Z\le2$.
+weighted average. `search_average_refutation` proposes such witnesses on
+a finite grid and `bracket_average_scale` retains checked lower and upper
+scales. `sharp_closed_tail` computes the sharp bound in the raw moment
+chart $Z\ge1$, $\mathbb E Z\le2$.
+
+`decide_moment` uses the optional system Z3 library to decide polynomial
+moment implications on semialgebraic supports, including cases needing
+algebraic atoms. `exponential_moment_problem` reduces common rational-rate
+exponentials to that fragment. `check_exponential_residual` replays guarded
+Taylor-coefficient certificates for the E1 chart.
 
 `verify_derivation` replays named rules for exact rational reciprocal
-exponents, including powers, products, exponent descent, bounded raises and
-finite sums. It retains exact scale expressions, including logarithm
-constants. `check_scaling` checks the necessary dilation weight condition
-for positive expressions under supplied rational weights. The
-`norm_weight` helper records the normalization and derivative order of
-each norm.
+exponents, including powers, products, exponent changes, tail conversions,
+weighted sums and the bounded independent-mean rule. It retains exact
+scale expressions, including logarithm constants. `verify_scale_domination`
+checks allocations of exact or generic coefficient shares on small, large
+and free atom ranges. `check_scaling` checks the necessary dilation weight
+condition for positive expressions under supplied rational weights.
 
 The [portable moment format](docs/size-calculus.md) shows how to run JSON
 manifests with `python -m decidable.size_calculus` and describes the exact
