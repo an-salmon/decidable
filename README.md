@@ -155,6 +155,48 @@ integers or `Fraction` objects. The calculation uses rational Gaussian
 elimination. See [the runnable example](examples/basic.py) for checks across
 all seven fragments.
 
+## Size calculus
+
+`decidable.size_calculus` replays exact moment and stretched-exponential
+size bounds. For a rational polynomial moment problem on an interval,
+`verify_majorant` checks a signed intercept, nonnegative slopes, the total
+budget and the pointwise inequality on the entire support. The checker
+accepts an explicit square or uses exact univariate root isolation.
+`verify_atomic_law` replays strict feasibility or a counterexample.
+
+```python
+from fractions import Fraction
+from sympy import Poly, symbols
+from decidable.size_calculus import (
+    Majorant, MomentProblem, grid_optimum, verify_majorant,
+)
+
+z = symbols("z")
+problem = MomentProblem((Poly(z**2, z),), (4,), Poly(z, z), 2, lower=1)
+assert verify_majorant(problem, Majorant(1, (Fraction(1, 4),))).status == "verified"
+assert grid_optimum(problem, (1, 3)).value == Fraction(7, 4)
+```
+
+`search_refutation` enumerates exact vertices on a small supplied grid.
+`search_majorant` proposes rational coefficients from grid contacts and
+tangencies, then replays them on the original support. An unresolved search
+returns `inconclusive`. `verify_average_refutation` uses rational
+enclosures to check a finite counterexample for a stretched-exponential
+weighted average, and `sharp_closed_tail` computes the sharp bound in the
+raw moment chart $Z\ge1$, $\mathbb E Z\le2$.
+
+`verify_derivation` replays named rules for exact rational reciprocal
+exponents, including powers, products, exponent descent, bounded raises and
+finite sums. It retains exact scale expressions, including logarithm
+constants. `check_scaling` checks the necessary dilation weight condition
+for positive expressions under supplied rational weights. The
+`norm_weight` helper records the normalization and derivative order of
+each norm.
+
+The [portable moment format](docs/size-calculus.md) shows how to run JSON
+manifests with `python -m decidable.size_calculus` and describes the exact
+scope of this implementation.
+
 ## Search and reporting
 
 `decidable.search.search_gram_certificate` tries exact rational linear algebra
