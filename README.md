@@ -55,12 +55,32 @@ rejects identically zero denominators. To use a verified identity at a
 particular point, also establish that both original denominators are nonzero
 there.
 
+## Monomial and jet checks
+
+`decidable.checks.loglinear_zero` checks whether a product of powers of
+positive bases equals one. Declare the positive base symbols and the
+symbols allowed in rational exponents. Use `evaluate=False` when building
+products and powers whose original structure must be checked. The identity
+holds wherever the original exponent denominators are nonzero.
+
+For an explicit jet certificate, use `total_derivative` to compute each
+derivative of the hypothesis, multiply by the corresponding certificate
+polynomial, and subtract the sum from the target. Pass that residual to
+`check_jet_identity` with its default right-hand side of zero. To combine
+a fixed list of dimensions in a report, return a Boolean indicating
+whether every per-dimension result is verified. Use the dimension list as
+the scope and mark the aggregate check and its dependent assemblies `finite`.
+
 ## Noncommutative identities
 
 Represent an expression as a dictionary from words to rational coefficients.
 A word is a tuple of matrix symbol names, and `()` is the identity. Each rule
 `(left_word, right_word)` replaces the longer word with the shorter one. The
-caller supplies the relations that hold for the intended matrices.
+caller supplies the relations that hold for the intended matrices. Omit
+`rules` to check the free associative algebra. For example, the commutator
+`Ab - bA` is `{("A", "b"): 1, ("b", "A"): -1}` and compares unequal to zero.
+When converting an expression to words, preserve the order of every matrix
+factor before any commutative simplification.
 
 Matching reduced expressions establish the identity. If the expressions differ
 and the rules are proved confluent, `False` means the identity fails in the
@@ -155,6 +175,48 @@ integers or `Fraction` objects. The calculation uses rational Gaussian
 elimination. See [the runnable example](examples/basic.py) for checks across
 all seven fragments.
 
+## Definite integrals over scales
+
+`quadrature_value(k, lower, upper)` gives an exact closed form for the
+integral of $t^k$ with rational $k$. With `decay=c` it integrates
+$t^k e^{-c/t}$ for integer $k\le -2$ and $c>0$. Pass an `int` or
+`Fraction` for the exponent and for exact constant bounds and decay.
+Use `0` as the lower limit at $0^+$ and `None` as the upper limit at
+$+\infty$. All other bounds are strictly positive. Two finite positive
+bounds define an oriented integral. For symbolic bounds or decay, pass
+exact coefficients from `PositiveParameters` and supply that declaration
+as `parameters=`.
+
+Pass the claimed closed form as the fourth argument to `verify_quadrature`
+with the same bounds and options. Its return value is a `CheckResult`
+that can be used in a symbolic proof obligation.
+
+```python
+from fractions import Fraction
+from decidable import verify_quadrature
+
+result = verify_quadrature(-2, 0, None, 4, decay=Fraction(1, 4))
+assert result.status == "verified"
+```
+
+For powers the checker uses the power or logarithm primitive and tests
+convergence separately at each improper endpoint. For exponential decay,
+it sets $u=c/t$ and $n=-k-2$. The primitive is
+$c^{k+1}e^{-u}P_n(u)$, where the polynomial satisfies
+$P_n-P_n'=u^n$ and $P_n(0)=n!$. The primitive tends to zero at $0^+$
+because exponential decay dominates polynomial growth, and to $c^{k+1}n!$
+at $+\infty$. Finite endpoint values use direct substitution.
+
+The closed-form check compares exact rational expressions after treating
+supported logarithms, exponentials and nonintegral rational powers as
+formal atoms. It checks the domain of the supplied expression and applies
+$\log(p^r)=r\log p$ for declared positive parameters $p$ and rational $r$.
+A failed comparison is `inconclusive` because identities between
+different atoms can require additional rules. For example, a claim in the
+form $\log(b/a)$ can require a further logarithm identity to match
+$\log b-\log a$. A divergent integral disproves a claim of a finite value.
+Forms outside the supported input domain yield `unsupported`.
+
 ## Size calculus
 
 `decidable.size_calculus` replays exact moment and stretched-exponential
@@ -234,6 +296,7 @@ evidence is also recorded as `EVIDENCE`.
 | `decidable.jets` | `check_jet_identity`, `total_derivative`, `two_scale_derivative` | A differential polynomial identity follows from the supplied algebraic jet relations in the registered dimension. |
 | `decidable.reductions` | `expand_gram_inner_product`, `reduce_spectral_quadratic_form` | Bilinear expansion into Gram coordinates and scalar evaluation on an explicitly assumed finite spectral support. |
 | `decidable.exp_series` | `check_exp_series`, `verify_exp_series_certificate` | An exact Taylor prefix and integer-tail certificate prove $P(x)e^x+Q(x) \ge 0$ on $x \ge 0$. Use `tail_start="auto"` to decide the Taylor coefficient condition. |
+| `decidable.quadrature` | `quadrature_value`, `verify_quadrature` | Exact endpoint evaluation and closed-form verification for the supported definite integrals over scales. |
 | `decidable.search` | `search_series_certificate`, `search_polynomial_certificate` | Search uses exact rational arithmetic over the full supplied finite basis by default and verifies any witness it finds. Set `max_support` to bound the number of nonzero weights. An unsuccessful search is inconclusive for the claim. |
 | `decidable.realization` | `recurrence_to_series` | An exact generating function for a finite scalar recurrence with rational constant coefficients. |
 
